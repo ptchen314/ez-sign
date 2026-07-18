@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>文件簽署</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #2563eb; --primary-dark: #1d4ed8;
+    --ink: #1e293b; --muted: #64748b; --line: #e2e8f0;
+    --bg: #f1f5f9; --card: #ffffff; --ok: #16a34a; --err: #dc2626;
+  }
+  body {
+    font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+  }
+  header {
+    background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 14px 20px; position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 10px;
+  }
+  header .logo {
+    width: 34px; height: 34px; border-radius: 8px; background: var(--primary);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; font-weight: 600; line-height: 1.3; }
+  header p { font-size: 12px; color: var(--muted); }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px; margin-bottom: 16px;
+  }
+  .hint {
+    display: flex; gap: 8px; align-items: flex-start;
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+    border-radius: 10px; padding: 12px 14px; font-size: 14px; margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .pages img {
+    width: 100%; display: block; border: 1px solid var(--line);
+    border-radius: 8px; margin-bottom: 12px; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  .section-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+  .agree {
+    display: flex; gap: 10px; align-items: flex-start; font-size: 14px;
+    line-height: 1.6; cursor: pointer; user-select: none;
+  }
+  .agree input { width: 18px; height: 18px; margin-top: 3px; flex-shrink: 0; accent-color: var(--primary); }
+  .pad-wrap { position: relative; }
+  canvas#pad {
+    width: 100%; height: 200px; display: block; touch-action: none;
+    background: #fff; border: 2px dashed #cbd5e1; border-radius: 10px;
+    cursor: crosshair;
+  }
+  .pad-placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; color: #cbd5e1; font-size: 15px;
+    pointer-events: none;
+  }
+  .pad-baseline {
+    position: absolute; left: 8%; right: 8%; bottom: 44px;
+    border-bottom: 1px solid #e2e8f0; pointer-events: none;
+  }
+  .pad-tools { display: flex; gap: 8px; margin-top: 10px; }
+  button {
+    font-family: inherit; font-size: 14px; border: none; border-radius: 8px;
+    padding: 9px 16px; cursor: pointer; transition: .15s;
+  }
+  .btn-ghost { background: #f1f5f9; color: var(--ink); border: 1px solid var(--line); }
+  .btn-ghost:hover { background: #e2e8f0; }
+  .btn-primary {
+    background: var(--primary); color: #fff; width: 100%;
+    font-size: 16px; font-weight: 600; padding: 14px;
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .signer-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;
+    border-radius: 999px; padding: 4px 12px; font-size: 13px; margin-top: 6px;
+  }
+  .error-box, .done-box {
+    text-align: center; padding: 56px 24px;
+  }
+  .error-box .icon, .done-box .icon { font-size: 52px; margin-bottom: 14px; }
+  .error-box h2, .done-box h2 { font-size: 20px; margin-bottom: 8px; }
+  .error-box p, .done-box p { color: var(--muted); font-size: 14px; line-height: 1.7; }
+  .done-box a.btn-primary {
+    display: inline-block; text-decoration: none; width: auto;
+    margin-top: 20px; padding: 12px 28px;
+  }
+  .toast {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%);
+    background: var(--err); color: #fff; padding: 11px 20px;
+    border-radius: 10px; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    opacity: 0; pointer-events: none; transition: .25s; z-index: 99; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; }
+  .loading { text-align: center; color: var(--muted); padding: 60px 0; font-size: 14px; }
+  footer { text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 0 26px; line-height: 1.8; }
+  footer .copyright { font-size: 11px; color: #b0bac7; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✍️</div>
+  <div>
+    <h1 id="docTitle">文件簽署</h1>
+    <p>線上電子簽名</p>
+  </div>
+</header>
+
+<main id="main"><div class="loading">載入中…</div></main>
+<footer>電子簽名系統<br>
+  <span class="copyright">© <span id="copyYear"></span> PT. All rights reserved.</span>
+</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const token = location.pathname.split("/").pop();
+const main = document.getElementById("main");
+let info = null;
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function load() {
+  let res;
+  try { res = await fetch(`/api/sign/${token}`); }
+  catch { return showError("無法連線到伺服器,請稍後再試。"); }
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    return showError(d.detail || "找不到這份簽署文件。");
+  }
+  info = await res.json();
+  document.getElementById("docTitle").textContent = info.title;
+  document.title = info.title + "|文件簽署";
+  if (info.status === "signed") return showDone(info.signed_at, false);
+  render();
+}
+
+function showError(msg) {
+  main.innerHTML = `<div class="card error-box">
+    <div class="icon">😕</div><h2>無法開啟文件</h2><p>${esc(msg)}</p></div>`;
+}
+
+function showDone(signedAt, justNow) {
+  main.innerHTML = `<div class="card done-box">
+    <div class="icon">✅</div>
+    <h2>${justNow ? "簽署完成!" : "此文件已完成簽署"}</h2>
+    <p>簽署人:${esc(info.name)}<br>簽署時間:${esc(signedAt || "")}</p>
+    <a class="btn-primary" href="/api/sign/${token}/signed.pdf">下載已簽署的 PDF</a>
+  </div>`;
+  window.scrollTo({ top: 0 });
+}
+
+function render() {
+  const pageImgs = Array.from({ length: info.pages }, (_, i) =>
+    `<img src="/api/sign/${token}/page/${i}.png" alt="第 ${i + 1} 頁" loading="lazy">`
+  ).join("");
+
+  main.innerHTML = `
+    <div class="hint">📄 <span>您好,<b>${esc(info.name)}</b>!請詳細閱讀以下文件,
+      閱讀完畢後於頁面底部勾選同意並親筆簽名。</span></div>
+    <div class="pages">${pageImgs}</div>
+
+    <div class="card">
+      <label class="agree">
+        <input type="checkbox" id="agree">
+        <span>我已知悉會員權益、使用方式及相關限制,並選擇加入會員。</span>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="section-title">✍️ 請在下方簽名</div>
+      <div class="pad-wrap">
+        <canvas id="pad"></canvas>
+        <div class="pad-baseline"></div>
+        <div class="pad-placeholder" id="padPh">請用手指或滑鼠在此簽名</div>
+      </div>
+      <div class="pad-tools">
+        <button class="btn-ghost" id="btnUndo">↩︎ 復原</button>
+        <button class="btn-ghost" id="btnClear">✕ 清除重簽</button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btnSubmit">確認送出簽名</button>
+    <div style="height:20px"></div>`;
+
+  initPad();
+  document.getElementById("btnSubmit").addEventListener("click", submit);
+}
+
+/* ---------------- 簽名板 ---------------- */
+let strokes = [], current = null, ctx, pad, dpr = 1;
+
+function initPad() {
+  pad = document.getElementById("pad");
+  ctx = pad.getContext("2d");
+  resizePad();
+  window.addEventListener("resize", resizePad);
+
+  pad.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    pad.setPointerCapture(e.pointerId);
+    current = [getPos(e)];
+    strokes.push(current);
+    document.getElementById("padPh").style.display = "none";
+    redraw();
+  });
+  pad.addEventListener("pointermove", e => {
+    if (!current) return;
+    e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of evs) current.push(getPos(ev));
+    redraw();
+  });
+  const up = () => { current = null; };
+  pad.addEventListener("pointerup", up);
+  pad.addEventListener("pointercancel", up);
+
+  document.getElementById("btnClear").addEventListener("click", () => {
+    strokes = []; current = null; redraw();
+    document.getElementById("padPh").style.display = "flex";
+  });
+  document.getElementById("btnUndo").addEventListener("click", () => {
+    strokes.pop(); current = null; redraw();
+    if (!strokes.length) document.getElementById("padPh").style.display = "flex";
+  });
+}
+
+function resizePad() {
+  if (!pad) return;
+  dpr = window.devicePixelRatio || 1;
+  const r = pad.getBoundingClientRect();
+  pad.width = r.width * dpr;
+  pad.height = r.height * dpr;
+  redraw();
+}
+
+function getPos(e) {
+  const r = pad.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function drawStrokes(c, scale, offX, offY, width) {
+  c.lineCap = "round"; c.lineJoin = "round";
+  c.strokeStyle = "#1a237e"; c.lineWidth = width;
+  for (const s of strokes) {
+    if (!s.length) continue;
+    c.beginPath();
+    c.moveTo((s[0].x - offX) * scale, (s[0].y - offY) * scale);
+    if (s.length === 1) {
+      c.lineTo((s[0].x - offX) * scale + .1, (s[0].y - offY) * scale + .1);
+    } else {
+      for (let i = 1; i < s.length - 1; i++) {
+        const mx = (s[i].x + s[i + 1].x) / 2, my = (s[i].y + s[i + 1].y) / 2;
+        c.quadraticCurveTo((s[i].x - offX) * scale, (s[i].y - offY) * scale,
+                           (mx - offX) * scale, (my - offY) * scale);
+      }
+      const last = s[s.length - 1];
+      c.lineTo((last.x - offX) * scale, (last.y - offY) * scale);
+    }
+    c.stroke();
+  }
+}
+
+function redraw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, pad.width, pad.height);
+  drawStrokes(ctx, 1, 0, 0, 2.4);
+}
+
+function exportSignature() {
+  if (!strokes.length) return null;
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+  for (const s of strokes) for (const p of s) {
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+  }
+  const padPx = 8, scale = 3;
+  const w = maxX - minX + padPx * 2, h = maxY - minY + padPx * 2;
+  if (w < 12 || h < 6) return null;
+  const off = document.createElement("canvas");
+  off.width = Math.round(w * scale); off.height = Math.round(h * scale);
+  const c = off.getContext("2d");
+  drawStrokes(c, scale, minX - padPx, minY - padPx, 2.4 * scale);
+  return off.toDataURL("image/png");
+}
+
+/* ---------------- 送出 ---------------- */
+async function submit() {
+  if (!document.getElementById("agree").checked)
+    return toast("請先勾選「我已知悉會員權益…」");
+  const sig = exportSignature();
+  if (!sig) return toast("請先在簽名板上簽名");
+
+  const btn = document.getElementById("btnSubmit");
+  btn.disabled = true; btn.textContent = "送出中…";
+  try {
+    const res = await fetch(`/api/sign/${token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signature: sig, agree: true }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.detail || "送出失敗,請重試");
+    showDone(d.signed_at, true);
+  } catch (err) {
+    toast(err.message);
+    btn.disabled = false; btn.textContent = "確認送出簽名";
+  }
+}
+
+document.getElementById("copyYear").textContent = new Date().getFullYear();
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文件與簽署欄位設定 — ez-sign</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #2563eb; --primary-dark: #1d4ed8;
+    --ink: #1e293b; --muted: #64748b; --line: #e2e8f0;
+    --bg: #f1f5f9; --card: #fff; --ok: #16a34a; --err: #dc2626;
+  }
+  body {
+    font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+  }
+  header {
+    background: #0f172a; color: #fff; padding: 12px 20px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 30;
+  }
+  header .logo {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--primary);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  header h1 { font-size: 15px; font-weight: 600; }
+  header .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  a.btn, button {
+    font-family: inherit; font-size: 13px; border: none; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; transition: .15s; white-space: nowrap;
+    text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .btn-primary { background: var(--primary); color: #fff; font-weight: 600; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-ghost { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+  .btn-ghost:hover { background: #334155; }
+
+  .toolbar {
+    position: sticky; top: 54px; z-index: 20;
+    background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .toolbar label { font-size: 12px; color: var(--muted); }
+  .toolbar input[type=text] {
+    font-family: inherit; font-size: 14px; border: 1px solid #cbd5e1;
+    border-radius: 8px; padding: 7px 10px; min-width: 220px; flex: 1 1 220px; max-width: 420px;
+  }
+  .tools { display: flex; gap: 6px; }
+  .tool {
+    font-size: 13px; border: 1px solid var(--line); background: #f8fafc;
+    color: var(--ink); border-radius: 8px; padding: 7px 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .tool .dot { width: 11px; height: 11px; border-radius: 3px; }
+  .tool.active { border-color: var(--primary); background: #eff6ff; color: var(--primary-dark); font-weight: 600; }
+  .spacer { flex: 1 1 auto; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 18px 16px 60px; }
+  .hint {
+    display: flex; gap: 8px; align-items: flex-start;
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+    border-radius: 10px; padding: 11px 14px; font-size: 13px; margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .hint.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+
+  .page {
+    position: relative; margin: 0 auto 18px; width: 100%;
+    box-shadow: 0 1px 4px rgba(0,0,0,.1); border-radius: 6px; overflow: hidden;
+    background: #fff; touch-action: none;
+  }
+  .page.drawing { cursor: crosshair; }
+  .page img { width: 100%; display: block; }
+  .page .pgno {
+    position: absolute; top: 6px; right: 8px; z-index: 2;
+    background: rgba(15,23,42,.6); color: #fff; font-size: 11px;
+    padding: 1px 7px; border-radius: 999px; pointer-events: none;
+  }
+  .overlay { position: absolute; inset: 0; pointer-events: none; }
+  .box {
+    position: absolute; border: 2px solid; box-sizing: border-box;
+    pointer-events: auto; cursor: move; min-width: 6px; min-height: 6px;
+  }
+  .box .tag {
+    position: absolute; top: -1px; left: -1px; font-size: 10px; color: #fff;
+    padding: 1px 6px; border-bottom-right-radius: 6px; white-space: nowrap;
+    pointer-events: none; line-height: 1.5;
+  }
+  .box.sel { box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor; }
+  .box .del {
+    position: absolute; top: -11px; right: -11px; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--err); color: #fff; border: 2px solid #fff;
+    font-size: 13px; line-height: 1; padding: 0; display: none; cursor: pointer;
+    align-items: center; justify-content: center;
+  }
+  .box.sel .del { display: inline-flex; }
+  .handle {
+    position: absolute; width: 12px; height: 12px; background: #fff;
+    border: 1.5px solid #334155; border-radius: 3px; display: none;
+  }
+  .box.sel .handle { display: block; }
+  .handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }
+  .handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }
+  .handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+  .handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+
+  .loading { text-align: center; color: var(--muted); padding: 60px 0; font-size: 14px; }
+  .login-wrap { max-width: 380px; margin: 12vh auto 0; padding: 0 16px; }
+  .login-wrap .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; }
+  .login-wrap h2 { font-size: 18px; margin-bottom: 6px; }
+  .login-wrap p { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .login-wrap input {
+    font-family: inherit; font-size: 15px; width: 100%; border: 1px solid #cbd5e1;
+    border-radius: 8px; padding: 11px 12px;
+  }
+  .login-wrap button { width: 100%; margin-top: 14px; padding: 11px; font-size: 15px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 11px 20px; border-radius: 10px;
+    font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    opacity: 0; pointer-events: none; transition: .25s; z-index: 99; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--err); }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">載入中…</div></div>
+<input type="file" id="fileInput" accept="application/pdf,.pdf" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script>
+const TYPES = {
+  signature: { label: "簽名", color: "#2563eb" },
+  checkbox:  { label: "勾選", color: "#16a34a" },
+  date:      { label: "日期", color: "#d97706" },
+};
+
+let pw = sessionStorage.getItem("ezsign_pw") || "";
+let pageEls = [];
+let drag = null;
+const state = {
+  pages: 0, pageSizes: [], title: "", builtinDate: false,
+  fields: [], tool: "select", selectedId: null, seq: 1,
+};
+
+const app = document.getElementById("app");
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function toast(msg, isErr) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isErr ? " err" : "");
+  setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({ "X-Admin-Password": pw }, opts.headers || {});
+  const res = await fetch(path, opts);
+  if (res.status === 401) { showLogin(); throw new Error("需要登入"); }
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.detail || `發生錯誤 (${res.status})`);
+  }
+  return res;
+}
+
+/* ---------------- 登入 ---------------- */
+function showLogin() {
+  app.innerHTML = `
+    <div class="login-wrap"><div class="card">
+      <h2>🔐 管理員登入</h2>
+      <p>請輸入後台密碼以編輯文件版面</p>
+      <input type="password" id="pwInput" placeholder="後台密碼" autofocus>
+      <button class="btn-primary" id="btnLogin">登入</button>
+    </div></div>`;
+  const input = document.getElementById("pwInput");
+  const doLogin = async () => {
+    const val = input.value;
+    if (!val) return toast("請輸入密碼", true);
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: val }),
+      });
+      if (!res.ok) throw new Error("密碼錯誤");
+      pw = val; sessionStorage.setItem("ezsign_pw", pw);
+      init();
+    } catch (e) { toast(e.message, true); }
+  };
+  document.getElementById("btnLogin").addEventListener("click", doLogin);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+}
+
+/* ---------------- 初始化 ---------------- */
+async function init() {
+  app.innerHTML = `<div class="loading">載入中…</div>`;
+  let meta;
+  try {
+    const res = await api("/api/admin/document/meta");
+    meta = await res.json();
+  } catch (e) {
+    if (e.message !== "需要登入") toast(e.message, true);
+    return;
+  }
+  applyMeta(meta);
+  renderShell();
+  renderPages();
+}
+
+function applyMeta(meta) {
+  state.pages = meta.pages;
+  state.pageSizes = meta.page_sizes;
+  state.title = meta.title || "";
+  state.builtinDate = !!meta.builtin_date;
+  state.selectedId = null;
+  state.seq = 1;
+  state.fields = (meta.fields || []).map(f => ({
+    id: state.seq++, type: f.type, page: f.page,
+    x0: f.rect[0], y0: f.rect[1], x1: f.rect[2], y1: f.rect[3],
+    format: f.format || null,
+  }));
+}
+
+function renderShell() {
+  app.innerHTML = `
+    <header>
+      <div class="logo">✍️</div>
+      <h1>文件與簽署欄位設定</h1>
+      <div class="right">
+        <a class="btn btn-ghost" href="/admin">← 返回後台</a>
+        <button class="btn btn-primary" id="btnSave">💾 儲存版面</button>
+      </div>
+    </header>
+    <div class="toolbar">
+      <label>文件標題</label>
+      <input type="text" id="docTitle" value="${esc(state.title)}" placeholder="文件標題">
+      <div class="spacer"></div>
+      <button class="tool" id="btnUpload">📄 更換 PDF</button>
+      <div class="tools" id="tools"></div>
+    </div>
+    <main>
+      <div id="hints"></div>
+      <div id="pagesWrap"></div>
+    </main>`;
+
+  const tools = document.getElementById("tools");
+  const defs = [
+    { key: "select", label: "選取/移動", icon: "🖱" },
+    { key: "signature", label: "簽名框" },
+    { key: "checkbox", label: "勾選框" },
+    { key: "date", label: "日期框" },
+  ];
+  tools.innerHTML = defs.map(d => {
+    const dot = TYPES[d.key]
+      ? `<span class="dot" style="background:${TYPES[d.key].color}"></span>` : (d.icon || "");
+    return `<button class="tool" data-tool="${d.key}">${dot}${d.label}</button>`;
+  }).join("");
+  tools.querySelectorAll(".tool").forEach(b =>
+    b.addEventListener("click", () => setTool(b.dataset.tool)));
+
+  document.getElementById("btnSave").addEventListener("click", save);
+  document.getElementById("btnUpload").addEventListener("click",
+    () => document.getElementById("fileInput").click());
+
+  renderHints();
+  setTool("select");
+}
+
+function renderHints() {
+  const box = document.getElementById("hints");
+  let html = `<div class="hint">🎯 <span>選一種欄位工具後,在頁面上<b>按住拖曳</b>畫出範圍;
+    切回「選取/移動」可拖動或縮放已畫的框(拖角落縮放,選取後按 × 或 Delete 刪除)。
+    畫完記得按右上角<b>「儲存版面」</b>。座標會自動對應目前這份 PDF。</span></div>`;
+  if (state.builtinDate) {
+    html += `<div class="hint warn">🗓 <span>本文件已內建「年 / 月 / 日」日期格,簽署時會自動填入,
+      毋須另畫日期框。若想改用自訂位置,新增一個「日期框」即會<b>取代</b>內建日期。</span></div>`;
+  }
+  box.innerHTML = html;
+}
+
+/* ---------------- 頁面與圖片 ---------------- */
+function renderPages() {
+  const wrap = document.getElementById("pagesWrap");
+  wrap.innerHTML = "";
+  pageEls = [];
+  for (let i = 0; i < state.pages; i++) {
+    const pageEl = document.createElement("div");
+    pageEl.className = "page";
+    pageEl.dataset.page = i;
+    pageEl.innerHTML = `<div class="pgno">第 ${i + 1} 頁</div>
+      <img alt="第 ${i + 1} 頁"><div class="overlay"></div>`;
+    wrap.appendChild(pageEl);
+    pageEls[i] = pageEl;
+    pageEl.addEventListener("pointerdown", e => startCreate(e, pageEl));
+    loadImage(i, pageEl.querySelector("img"));
+  }
+  for (const f of state.fields) addBoxEl(f);
+  applyToolCursor();
+}
+
+async function loadImage(i, img) {
+  try {
+    const res = await api(`/api/admin/document/page/${i}.png`);
+    img.src = URL.createObjectURL(await res.blob());
+  } catch { /* 忽略單頁載入失敗 */ }
+}
+
+/* ---------------- 欄位框 ---------------- */
+function pageScale(pageEl) {
+  const img = pageEl.querySelector("img");
+  const r = img.getBoundingClientRect();
+  if (r.width < 1) return null;
+  const [W, H] = state.pageSizes[+pageEl.dataset.page];
+  return { r, sx: W / r.width, sy: H / r.height, W, H };
+}
+
+function positionBox(box, f, W, H) {
+  const x0 = Math.min(f.x0, f.x1), y0 = Math.min(f.y0, f.y1);
+  const x1 = Math.max(f.x0, f.x1), y1 = Math.max(f.y0, f.y1);
+  box.style.left = (x0 / W * 100) + "%";
+  box.style.top = (y0 / H * 100) + "%";
+  box.style.width = ((x1 - x0) / W * 100) + "%";
+  box.style.height = ((y1 - y0) / H * 100) + "%";
+}
+
+function makeBox(f) {
+  const t = TYPES[f.type];
+  const box = document.createElement("div");
+  box.className = "box";
+  box.dataset.id = f.id;
+  box.style.borderColor = t.color;
+  box.style.color = t.color;
+  box.style.background = t.color + "22";
+  box.innerHTML =
+    `<span class="tag" style="background:${t.color}">${t.label}</span>` +
+    `<button class="del" title="刪除">×</button>` +
+    ["nw", "ne", "sw", "se"].map(h => `<i class="handle ${h}" data-handle="${h}"></i>`).join("");
+  box.addEventListener("pointerdown", e => onBoxDown(e, f, box));
+  const del = box.querySelector(".del");
+  del.addEventListener("pointerdown", e => e.stopPropagation());
+  del.addEventListener("click", e => { e.stopPropagation(); removeField(f.id); });
+  f._el = box;
+  return box;
+}
+
+function addBoxEl(f) {
+  const box = makeBox(f);
+  pageEls[f.page].querySelector(".overlay").appendChild(box);
+  const [W, H] = state.pageSizes[f.page];
+  positionBox(box, f, W, H);
+  if (state.selectedId === f.id) box.classList.add("sel");
+  return box;
+}
+
+function select(id) {
+  state.selectedId = id;
+  document.querySelectorAll(".box").forEach(b =>
+    b.classList.toggle("sel", +b.dataset.id === id));
+}
+
+function removeField(id) {
+  const f = state.fields.find(x => x.id === id);
+  if (f && f._el) f._el.remove();
+  state.fields = state.fields.filter(x => x.id !== id);
+  if (state.selectedId === id) state.selectedId = null;
+}
+
+/* ---------------- 建立 / 拖動 / 縮放 ---------------- */
+function startCreate(e, pageEl) {
+  if (state.tool === "select") return;
+  if (e.target.closest(".box")) return;
+  const sc = pageScale(pageEl);
+  if (!sc) return;
+  e.preventDefault();
+  const px = clamp((e.clientX - sc.r.left) * sc.sx, 0, sc.W);
+  const py = clamp((e.clientY - sc.r.top) * sc.sy, 0, sc.H);
+  const f = { id: state.seq++, type: state.tool, page: +pageEl.dataset.page,
+              x0: px, y0: py, x1: px, y1: py, format: null };
+  const box = makeBox(f);
+  pageEl.querySelector(".overlay").appendChild(box);
+  positionBox(box, f, sc.W, sc.H);
+  drag = { mode: "create", f, el: box, sc };
+}
+
+function onBoxDown(e, f, box) {
+  if (e.target.classList.contains("del")) return;
+  e.preventDefault();
+  select(f.id);
+  const sc = pageScale(pageEls[f.page]);
+  if (!sc) return;
+  const handle = e.target.dataset.handle;
+  if (handle) {
+    drag = { mode: "resize", f, el: box, sc, o: { ...f }, handle };
+  } else {
+    const px = (e.clientX - sc.r.left) * sc.sx, py = (e.clientY - sc.r.top) * sc.sy;
+    drag = { mode: "move", f, el: box, sc, o: { ...f }, startX: px, startY: py };
+  }
+}
+
+function onDragMove(e) {
+  if (!drag) return;
+  const sc = drag.sc, f = drag.f;
+  const px = clamp((e.clientX - sc.r.left) * sc.sx, 0, sc.W);
+  const py = clamp((e.clientY - sc.r.top) * sc.sy, 0, sc.H);
+  if (drag.mode === "create") {
+    f.x1 = px; f.y1 = py;
+  } else if (drag.mode === "move") {
+    const w = drag.o.x1 - drag.o.x0, h = drag.o.y1 - drag.o.y0;
+    const nx0 = clamp(drag.o.x0 + (px - drag.startX), 0, sc.W - w);
+    const ny0 = clamp(drag.o.y0 + (py - drag.startY), 0, sc.H - h);
+    f.x0 = nx0; f.y0 = ny0; f.x1 = nx0 + w; f.y1 = ny0 + h;
+  } else if (drag.mode === "resize") {
+    const hnd = drag.handle;
+    if (hnd.includes("w")) f.x0 = Math.min(px, drag.o.x1 - 4);
+    if (hnd.includes("e")) f.x1 = Math.max(px, drag.o.x0 + 4);
+    if (hnd.includes("n")) f.y0 = Math.min(py, drag.o.y1 - 4);
+    if (hnd.includes("s")) f.y1 = Math.max(py, drag.o.y0 + 4);
+  }
+  positionBox(drag.el, f, sc.W, sc.H);
+}
+
+function onDragEnd() {
+  if (!drag) return;
+  const f = drag.f;
+  const x0 = Math.min(f.x0, f.x1), y0 = Math.min(f.y0, f.y1);
+  const x1 = Math.max(f.x0, f.x1), y1 = Math.max(f.y0, f.y1);
+  f.x0 = x0; f.y0 = y0; f.x1 = x1; f.y1 = y1;
+  if (drag.mode === "create") {
+    if ((x1 - x0) < 6 || (y1 - y0) < 6) {
+      drag.el.remove();               // 太小,視為誤觸,丟棄
+    } else {
+      state.fields.push(f);
+      select(f.id);
+      setTool("select");
+    }
+  }
+  drag = null;
+}
+
+window.addEventListener("pointermove", onDragMove);
+window.addEventListener("pointerup", onDragEnd);
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "Delete" || e.key === "Backspace") && state.selectedId != null) {
+    e.preventDefault();
+    removeField(state.selectedId);
+  }
+});
+
+/* ---------------- 工具切換 ---------------- */
+function setTool(t) {
+  state.tool = t;
+  document.querySelectorAll(".tool").forEach(b =>
+    b.classList.toggle("active", b.dataset.tool === t));
+  applyToolCursor();
+}
+
+function applyToolCursor() {
+  const drawing = state.tool !== "select";
+  pageEls.forEach(p => p.classList.toggle("drawing", drawing));
+}
+
+/* ---------------- 更換 PDF ---------------- */
+document.getElementById("fileInput").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) return toast("PDF 檔案過大(上限 25 MB)", true);
+  if (!confirm("更換文件後,尚未簽署的連結會改用新文件與新版面。\n" +
+               "既有欄位會保留但可能需要重新調整位置。確定上傳?")) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let dataUrl = String(reader.result)
+      .replace(/^data:[^;]*;base64,/, "data:application/pdf;base64,");
+    try {
+      const res = await api("/api/admin/document", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdf: dataUrl }),
+      });
+      const meta = await res.json();
+      applyMeta(meta);
+      renderHints();
+      renderPages();
+      toast(`已更換為新 PDF(共 ${meta.pages} 頁),請確認並調整欄位後儲存`);
+    } catch (err) { toast(err.message, true); }
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ---------------- 儲存 ---------------- */
+async function save() {
+  if (!state.fields.some(f => f.type === "signature")) {
+    if (!confirm("尚未設定任何「簽名框」,簽署時將不會蓋上簽名圖。確定儲存?")) return;
+  }
+  const btn = document.getElementById("btnSave");
+  btn.disabled = true;
+  const payload = {
+    title: document.getElementById("docTitle").value.trim(),
+    fields: state.fields.map(f => {
+      const item = { type: f.type, page: f.page, rect: [f.x0, f.y0, f.x1, f.y1] };
+      if (f.type === "date" && f.format) item.format = f.format;
+      return item;
+    }),
+  };
+  try {
+    const res = await api("/api/admin/template", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const meta = await res.json();
+    state.title = meta.title;
+    state.builtinDate = !!meta.builtin_date;
+    renderHints();
+    toast("已儲存!之後新的簽署都會套用此版面");
+  } catch (e) { toast(e.message, true); }
+  btn.disabled = false;
+}
+
+/* ---------------- 啟動 ---------------- */
+if (!pw) showLogin(); else init();
+</script>
+</body>
+</html>

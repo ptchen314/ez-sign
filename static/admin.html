@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ez-sign 後台管理</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #2563eb; --primary-dark: #1d4ed8;
+    --ink: #1e293b; --muted: #64748b; --line: #e2e8f0;
+    --bg: #f1f5f9; --card: #fff; --ok: #16a34a; --err: #dc2626;
+  }
+  body {
+    font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+  }
+  header {
+    background: #0f172a; color: #fff; padding: 14px 24px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  header .logo {
+    width: 32px; height: 32px; border-radius: 8px; background: var(--primary);
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header .right { margin-left: auto; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 14px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type=text], input[type=email], input[type=password] {
+    font-family: inherit; font-size: 14px; width: 100%;
+    border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 12px;
+    outline: none; transition: .15s;
+  }
+  input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .form-row > div { flex: 1 1 180px; }
+  button {
+    font-family: inherit; font-size: 14px; border: none; border-radius: 8px;
+    padding: 9px 18px; cursor: pointer; transition: .15s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; font-weight: 600; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-ghost {
+    background: #f8fafc; border: 1px solid var(--line); color: var(--ink);
+    padding: 6px 10px; font-size: 13px;
+  }
+  .btn-ghost:hover { background: #e2e8f0; }
+  .btn-danger { background: #fef2f2; border: 1px solid #fecaca; color: var(--err); padding: 6px 10px; font-size: 13px; }
+  .btn-danger:hover { background: #fee2e2; }
+  .btn-link { background: none; color: var(--primary); padding: 6px 8px; font-size: 13px; text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th {
+    text-align: left; color: var(--muted); font-size: 12px; font-weight: 600;
+    padding: 8px 10px; border-bottom: 2px solid var(--line); white-space: nowrap;
+  }
+  td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .chip {
+    display: inline-block; border-radius: 999px; padding: 3px 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .chip.pending { background: #fef9c3; color: #a16207; }
+  .chip.signed { background: #dcfce7; color: #15803d; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; }
+  .table-wrap { overflow-x: auto; }
+  /* login */
+  .login-wrap {
+    max-width: 380px; margin: 10vh auto 0; padding: 0 16px;
+  }
+  .login-wrap .card { padding: 28px; }
+  .login-wrap h2 { font-size: 18px; margin-bottom: 6px; }
+  .login-wrap p { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .login-wrap button { width: 100%; margin-top: 14px; padding: 11px; font-size: 15px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 11px 20px; border-radius: 10px;
+    font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    opacity: 0; pointer-events: none; transition: .25s; z-index: 99; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--err); }
+  .stat-row { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat {
+    flex: 1 1 140px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px;
+  }
+  .stat .num { font-size: 26px; font-weight: 700; }
+  .stat .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  footer { text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 0 26px; line-height: 1.8; }
+  footer .copyright { font-size: 11px; color: #b0bac7; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✍️</div>
+  <h1>ez-sign 後台管理 — 會員福利簽署</h1>
+  <div class="right" id="headerRight"></div>
+</header>
+<main id="main"></main>
+<footer>電子簽名系統<br>
+  <span class="copyright">© <span id="copyYear"></span> PT. All rights reserved.</span>
+</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const main = document.getElementById("main");
+let pw = sessionStorage.getItem("ezsign_pw") || "";
+let list = [];
+
+function toast(msg, isErr) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isErr ? " err" : "");
+  setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({ "X-Admin-Password": pw }, opts.headers || {});
+  const res = await fetch(path, opts);
+  if (res.status === 401) { logout(); throw new Error("登入逾期,請重新登入"); }
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.detail || `發生錯誤 (${res.status})`);
+  }
+  return res;
+}
+
+/* ---------------- 登入 ---------------- */
+function renderLogin() {
+  document.getElementById("headerRight").innerHTML = "";
+  main.innerHTML = `
+    <div class="login-wrap"><div class="card">
+      <h2>🔐 管理員登入</h2>
+      <p>請輸入後台密碼以管理簽署請求</p>
+      <label>密碼</label>
+      <input type="password" id="pwInput" placeholder="後台密碼" autofocus>
+      <button class="btn-primary" id="btnLogin">登入</button>
+    </div></div>`;
+  const input = document.getElementById("pwInput");
+  const doLogin = async () => {
+    const val = input.value;
+    if (!val) return toast("請輸入密碼", true);
+    const btn = document.getElementById("btnLogin");
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: val }),
+      });
+      if (!res.ok) throw new Error("密碼錯誤");
+      pw = val;
+      sessionStorage.setItem("ezsign_pw", pw);
+      await enter();
+    } catch (e) { toast(e.message, true); btn.disabled = false; }
+  };
+  document.getElementById("btnLogin").addEventListener("click", doLogin);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+}
+
+function logout() {
+  pw = ""; sessionStorage.removeItem("ezsign_pw");
+  renderLogin();
+}
+
+/* ---------------- 主畫面 ---------------- */
+async function enter() {
+  document.getElementById("headerRight").innerHTML =
+    `<a class="btn-ghost" href="/admin/template" style="text-decoration:none;margin-right:8px">⚙️ 文件與欄位設定</a>` +
+    `<button class="btn-ghost" onclick="logout()">登出</button>`;
+  main.innerHTML = `
+    <div class="stat-row" id="stats"></div>
+    <div class="card">
+      <h2>➕ 新增簽署請求</h2>
+      <div class="form-row">
+        <div><label>簽署人姓名 *</label><input type="text" id="fName" placeholder="例:王小明"></div>
+        <div><label>Email(選填)</label><input type="email" id="fEmail" placeholder="用於自己備註"></div>
+        <div><label>備註(選填)</label><input type="text" id="fNote" placeholder="例:銀級會員"></div>
+        <div style="flex:0"><button class="btn-primary" id="btnCreate">建立並產生連結</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>📋 簽署列表 <button class="btn-ghost" id="btnRefresh" style="float:right">↻ 重新整理</button></h2>
+      <div class="table-wrap" id="tableWrap"></div>
+    </div>`;
+  document.getElementById("btnCreate").addEventListener("click", createRequest);
+  document.getElementById("btnRefresh").addEventListener("click", () => refresh(true));
+  document.getElementById("fName").addEventListener("keydown",
+    e => { if (e.key === "Enter") createRequest(); });
+  await refresh();
+  setInterval(refresh, 15000); // 每 15 秒自動更新狀態
+}
+
+async function refresh(manual) {
+  try {
+    const res = await api("/api/admin/requests");
+    list = await res.json();
+    renderTable();
+    if (manual) toast("已更新");
+  } catch (e) { if (manual) toast(e.message, true); }
+}
+
+function renderTable() {
+  const signed = list.filter(r => r.status === "signed").length;
+  document.getElementById("stats").innerHTML = `
+    <div class="stat"><div class="num">${list.length}</div><div class="lbl">簽署請求總數</div></div>
+    <div class="stat"><div class="num" style="color:var(--ok)">${signed}</div><div class="lbl">已完成簽署</div></div>
+    <div class="stat"><div class="num" style="color:#a16207">${list.length - signed}</div><div class="lbl">待簽署</div></div>`;
+
+  const wrap = document.getElementById("tableWrap");
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty">尚無簽署請求,請從上方建立第一筆。</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>簽署人</th><th>備註</th><th>狀態</th>
+        <th>建立時間</th><th>簽署時間</th><th>操作</th>
+      </tr></thead>
+      <tbody>${list.map(r => `
+        <tr>
+          <td class="muted">${r.id}</td>
+          <td><b>${esc(r.name)}</b>${r.email ? `<div class="muted">${esc(r.email)}</div>` : ""}</td>
+          <td class="muted">${esc(r.note) || "—"}</td>
+          <td><span class="chip ${r.status}">${r.status === "signed" ? "已簽署" : "待簽署"}</span></td>
+          <td class="muted">${esc(r.created_at)}</td>
+          <td class="muted">${esc(r.signed_at) || "—"}</td>
+          <td><div class="actions">
+            <button class="btn-ghost" onclick="copyLink(${r.id})">📋 複製連結</button>
+            <button class="btn-link" onclick="window.open(list.find(x=>x.id===${r.id}).sign_url)">開啟</button>
+            ${r.status === "signed"
+              ? `<button class="btn-ghost" onclick="downloadPdf(${r.id})">⬇ 下載 PDF</button>` : ""}
+            <button class="btn-danger" onclick="del(${r.id})">刪除</button>
+          </div></td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+async function createRequest() {
+  const name = document.getElementById("fName").value.trim();
+  if (!name) return toast("請填寫簽署人姓名", true);
+  const btn = document.getElementById("btnCreate");
+  btn.disabled = true;
+  try {
+    const res = await api("/api/admin/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        email: document.getElementById("fEmail").value.trim(),
+        note: document.getElementById("fNote").value.trim(),
+      }),
+    });
+    const row = await res.json();
+    document.getElementById("fName").value = "";
+    document.getElementById("fEmail").value = "";
+    document.getElementById("fNote").value = "";
+    await refresh();
+    copyText(row.sign_url,
+      `已建立!簽署連結已複製,傳給「${row.name}」即可`,
+      `已建立!連結:${row.sign_url}`);
+  } catch (e) { toast(e.message, true); }
+  btn.disabled = false;
+}
+
+function copyLink(id) {
+  const r = list.find(x => x.id === id);
+  if (r) copyText(r.sign_url, "簽署連結已複製", `連結:${r.sign_url}`);
+}
+
+function copyText(text, okMsg, fallbackMsg) {
+  const done = () => toast(okMsg);
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => legacyCopy(text) ? done() : prompt("請手動複製:", text));
+  } else {
+    legacyCopy(text) ? done() : prompt("請手動複製:", text);
+  }
+}
+
+function legacyCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.cssText = "position:fixed;opacity:0";
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch {}
+  document.body.removeChild(ta);
+  return ok;
+}
+
+async function downloadPdf(id) {
+  try {
+    const res = await api(`/api/admin/requests/${id}/signed.pdf`);
+    const blob = await res.blob();
+    const r = list.find(x => x.id === id);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `會員福利_已簽署_${r ? r.name : id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function del(id) {
+  const r = list.find(x => x.id === id);
+  if (!confirm(`確定刪除「${r ? r.name : id}」的簽署請求?${r && r.status === "signed" ? "\n(已簽署的 PDF 也會一併刪除)" : ""}`))
+    return;
+  try {
+    await api(`/api/admin/requests/${id}`, { method: "DELETE" });
+    await refresh();
+    toast("已刪除");
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------------- 啟動 ---------------- */
+document.getElementById("copyYear").textContent = new Date().getFullYear();
+(async () => {
+  if (!pw) return renderLogin();
+  try {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pw }),
+    });
+    if (!res.ok) return logout();
+    await enter();
+  } catch { renderLogin(); }
+})();
+</script>
+</body>
+</html>
