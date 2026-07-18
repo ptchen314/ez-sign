@@ -84,6 +84,18 @@ def now_str() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def client_ip(request: Request) -> str:
+    """取得簽署者真實 IP;本服務走 cloudflared tunnel,直接讀 request.client
+    只會拿到 127.0.0.1,需改看 Cloudflare 帶進來的標頭。"""
+    cf = request.headers.get("cf-connecting-ip", "").strip()
+    if cf:
+        return cf
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff.strip():
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 # ---------------------------------------------------------------- 文件與版面
 _page_cache: dict[int, bytes] = {}
 _render_lock = threading.Lock()
@@ -191,10 +203,17 @@ def stamp_pdf(sig_png: bytes, name: str, when: datetime.datetime,
 
     # 頁尾稽核資訊(蓋在最後一頁底部)
     last = doc[-1]
-    audit = (f"簽署人:{name}   簽署時間:{when.strftime('%Y-%m-%d %H:%M:%S')}"
-             f"   簽署編號:{token[:12]}   IP:{ip}")
-    last.insert_text((57, last.rect.height - 22), audit,
-                     fontname="china-t", fontsize=7.5, color=(0.45, 0.45, 0.45))
+    grey = (0.45, 0.45, 0.45)
+    x, avail = 57, last.rect.width - 57 * 2
+    # 編號與 IP 另起一行並用小字:IPv6 位址接在同一行會被擠出頁面右邊界
+    line1 = f"簽署人:{name}   簽署時間:{when.strftime('%Y-%m-%d %H:%M:%S')}"
+    line2 = f"簽署編號:{token[:12]}   IP:{ip}"
+    for text, y, size in ((line1, last.rect.height - 31, 7.5),
+                          (line2, last.rect.height - 21, 6.5)):
+        while size > 5 and \
+                fitz.get_text_length(text, fontname="china-t", fontsize=size) > avail:
+            size -= 0.25
+        last.insert_text((x, y), text, fontname="china-t", fontsize=size, color=grey)
 
     doc.save(out_path, deflate=True)
     doc.close()
@@ -519,7 +538,7 @@ def submit_signature(token: str, body: SignBody, request: Request) -> dict:
     sig_png = decode_signature(body.signature)
 
     when = datetime.datetime.now()
-    ip = request.client.host if request.client else "unknown"
+    ip = client_ip(request)
     out_path = SIGNED_DIR / f"signed_{row['id']}_{token[:8]}.pdf"
 
     stamp_pdf(sig_png, row["name"], when, token, ip, out_path)
